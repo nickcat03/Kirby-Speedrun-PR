@@ -17,54 +17,68 @@ app.get('/hi', function (req, res) {
 
 app.get('/test', function (req, res) {
 
-    //For the time being, we will manually input values into the code to be calculated here since we lack a front-end
-    var users = [
-      //[Username, UserID, Time]
-        ["Yotta", null, null],
-        ["Nippo", null, null]
-    ]
+    // For the time being, we will manually input values into the code to be calculated here since we lack a front-end
+    var users = {
+        "Yotta": {
+            UserID: null,
+            Time: null,
+        },
+        "Nippo": {
+            UserID: null,
+            Time: null,
+        }
+    }
 
-    //Change names into user IDs so they can be searched on the leaderboard
+    // 1: Change names into user IDs so they can be searched on the leaderboard
     assignUserID(users)
-
-    // pull data from src for KSS Any% leaderboard data
-    .then(assignUserTime(users))
-
-    // send response
-    res.send(users)
+    .then(IDresult => {
+        // 2: pull data from src for KSS Any% leaderboard data
+        assignUserTime(IDresult)
+        .then(timeResult => {
+            // 3: emit finished result object
+            res.send(timeResult)
+        })
+    })
 })
 
 // Change names into user IDs so they can be searched on the leaderboard
-var assignUserID = (users) => {
+var assignUserID = async (users) => {
+    let userObject = Object.keys(users)
+
     // iterate through the list of users
-    for (let i = 0; i < users.length; i++) {
+    for (let i = 0; i < userObject.length; i++) {
         // pull data from src for userdata
-        axios(`https://www.speedrun.com/api/v1/users/${users[i][0]}`)
-        .then(result => {
-            users[i][1] = result.data.data.id
+        await axios(`https://www.speedrun.com/api/v1/users/${userObject[i]}`)
+        .then(async (result) => {
+            users[userObject[i]].UserID = result.data.data.id
         })
     }
+    return users
 }
 
 // assign time data to each user
-var assignUserTime = (users) => {
+var assignUserTime = async (users) => {
+    let userObject = Object.keys(users)
+
     // iterate through the list of users
-    for (let i = 0; i < users.length; i++) {
+    for (let i = 0; i < userObject.length; i++) {
         // pull data from src for KSS leaderboard
-        axios('https://www.speedrun.com/api/v1/leaderboards/l3dxny1y/category/wkpy9wkr') //URL goes to KSS Any% leaderboard data
-        .then(result => {
-            var currentID = ""
-            //result.data.data.runs.length
-            for (let i = 0; i < 1; i++) { //Loop that lasts for as many runs as there are on the leaderboard
-                currentID = result.data.data.runs[i].run.players[0].id; //Find the player ID for the run that is currently being searched.
-                for (let j = 0; j < users.length; j++) { //Compare ID to the IDs that we want to find
-                    if (users[j][1] == currentID) {
-                        users[j][2] = result.data.data.runs[i].run.times.primary_t //if an ID matches, we assign that users time to the array
-                    }
+        await axios('https://www.speedrun.com/api/v1/leaderboards/l3dxny1y/category/wkpy9wkr') //URL goes to KSS Any% leaderboard data
+        .then(async (result) => {
+            for (let j = 0; j < result.data.data.runs.length; j++) {
+                let currentRun = result.data.data.runs[j].run
+
+                // Find the player ID for the run that is currently being searched.
+                let currentID = currentRun.players[0].id
+
+                // Compare ID to the IDs that we want to find
+                if (users[userObject[i]].UserID == currentID) {
+                    users[userObject[i]].Time = currentRun.times.primary_t //if an ID matches, we assign that users time to the array
                 }
             }
         })
     }
+    return users
 }
 
 app.use((req, res, next) => {
